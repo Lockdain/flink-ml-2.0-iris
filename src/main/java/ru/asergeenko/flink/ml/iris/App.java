@@ -1,5 +1,7 @@
 package ru.asergeenko.flink.ml.iris;
 
+import org.apache.flink.ml.classification.knn.Knn;
+import org.apache.flink.ml.classification.knn.KnnModel;
 import org.apache.flink.ml.classification.logisticregression.LogisticRegression;
 import org.apache.flink.ml.classification.logisticregression.LogisticRegressionModel;
 import org.apache.flink.ml.classification.naivebayes.NaiveBayes;
@@ -44,6 +46,7 @@ public class App {
                 "sepal_width DOUBLE," +
                 "petal_length DOUBLE," +
                 "petal_width DOUBLE," +
+                "species DOUBLE" +
                 ") WITH (" +
                 "'connector'='filesystem'," +
                 "'path'='src/main/resources/iris_dataset_validation.csv'," +
@@ -53,33 +56,20 @@ public class App {
                 ")"
         );
 
-        Table irisCsvTrainTable = tableEnv.from("iris_csv_train");
-        Table irisCsvTableValidation = tableEnv.from("iris_csv_validation");
-        irisCsvTrainTable.execute();
-        irisCsvTableValidation.execute();
-
         ScalarFunction dense = new DenseVectorMapFunction();
         tableEnv.createTemporarySystemFunction("dense", dense);
 
         Table trainFeatures = tableEnv.sqlQuery("SELECT dense(sepal_length, sepal_width, petal_length, petal_width) as features, species as label FROM iris_csv_train");
         Table validationFeatures = tableEnv.sqlQuery("SELECT dense(sepal_length, sepal_width, petal_length, petal_width) as features FROM iris_csv_validation");
-        Table predictFeatures = trainFeatures.dropColumns("label");
         trainFeatures.execute().print();
-        predictFeatures.execute().print();
+        validationFeatures.execute().print();
 
         //virginica = 3; versicolor = 2; setosa = 1;
-        NaiveBayes estimator =
-                new NaiveBayes()
-                        .setSmoothing(1.0)
-                        .setFeaturesCol("features")
-                        .setLabelCol("label")
-                        .setPredictionCol("prediction")
-                        .setModelType("multinomial");
+        Knn knn = new Knn();
+        KnnModel knnModel = knn.fit(trainFeatures);
+        Table output = knnModel.transform(validationFeatures)[0];
 
-        NaiveBayesModel model = estimator.fit(trainFeatures);
-        Table outputTable = model.transform(predictFeatures)[0];
-
-        outputTable.execute().print();
+        output.execute().print();
 
     }
 }
