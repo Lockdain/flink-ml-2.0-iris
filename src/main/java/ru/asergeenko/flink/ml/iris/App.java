@@ -22,7 +22,7 @@ public class App {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         StreamTableEnvironment tableEnv = StreamTableEnvironment.create(env);
 
-        tableEnv.executeSql("CREATE TABLE iris_csv " +
+        tableEnv.executeSql("CREATE TABLE iris_csv_train " +
                 "(" +
                 "sepal_length DOUBLE," +
                 "sepal_width DOUBLE," +
@@ -31,21 +31,38 @@ public class App {
                 "species DOUBLE" +
                 ") WITH (" +
                 "'connector'='filesystem'," +
-                "'path'='src/main/resources/iris_dataset.csv'," +
+                "'path'='src/main/resources/iris_dataset_train.csv'," +
                 "'format'='csv'," +
                 "'csv.ignore-parse-errors'='true'," +
                 "'csv.allow-comments'='true'" +
                 ")"
         );
 
-        Table irisCsvTable = tableEnv.from("iris_csv");
-        irisCsvTable.execute();
+        tableEnv.executeSql("CREATE TABLE iris_csv_validation " +
+                "(" +
+                "sepal_length DOUBLE," +
+                "sepal_width DOUBLE," +
+                "petal_length DOUBLE," +
+                "petal_width DOUBLE," +
+                ") WITH (" +
+                "'connector'='filesystem'," +
+                "'path'='src/main/resources/iris_dataset_validation.csv'," +
+                "'format'='csv'," +
+                "'csv.ignore-parse-errors'='true'," +
+                "'csv.allow-comments'='true'" +
+                ")"
+        );
+
+        Table irisCsvTrainTable = tableEnv.from("iris_csv_train");
+        Table irisCsvTableValidation = tableEnv.from("iris_csv_validation");
+        irisCsvTrainTable.execute();
+        irisCsvTableValidation.execute();
+
         ScalarFunction dense = new DenseVectorMapFunction();
-
-
         tableEnv.createTemporarySystemFunction("dense", dense);
 
-        Table trainFeatures = tableEnv.sqlQuery("SELECT dense(sepal_length, sepal_width, petal_length, petal_width) as features, species as label FROM iris_csv");
+        Table trainFeatures = tableEnv.sqlQuery("SELECT dense(sepal_length, sepal_width, petal_length, petal_width) as features, species as label FROM iris_csv_train");
+        Table validationFeatures = tableEnv.sqlQuery("SELECT dense(sepal_length, sepal_width, petal_length, petal_width) as features FROM iris_csv_validation");
         Table predictFeatures = trainFeatures.dropColumns("label");
         trainFeatures.execute().print();
         predictFeatures.execute().print();
